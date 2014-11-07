@@ -1,0 +1,53 @@
+html {
+    
+}
+
+body {
+    background: rgba(0,0,0,0.9);
+    color: rgba(255,255,255,0.6);
+    font-size: 16px;
+    font-family: Inconsolata, Monaco, Consolas, 'Courier New', Courier, monospace;
+}
+
+pre {
+    
+}
+
+.content {
+    width: 80%;
+    max-width: 1000px;
+    margin: 50px auto;
+}
+
+.file_picker {
+    display: block;
+    margin-bottom: 15px;
+}
+
+.cm-s-editor.CodeMirror {
+    /* Codemirror theme tweaks */
+    background: rgba(255,255,255,0.05);
+    height: auto;
+    font-size: inherit;
+    font-family: inherit;
+    padding: 10px;
+    border-radius: 5px;
+}
+.cm-s-editor .CodeMirror-cursor {
+    border-left-width: 2px !important;
+}
+.cm-s-editor.CodeMirror-scroll {
+    overflow-y: hidden;
+    overflow-x: auto;
+}
+
+
+.output {
+    font-size: 14px;
+    margin: 10px 0 15px;
+    padding: 10px;
+    display: block;
+    white-space: pre;  
+    max-height: 200px;
+    overflow: auto;  
+}
