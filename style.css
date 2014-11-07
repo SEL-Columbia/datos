@@ -24,7 +24,7 @@ pre {
     margin-bottom: 15px;
 }
 
-.cm-s-editor.CodeMirror {
+.editor.CodeMirror {
     /* Codemirror theme tweaks */
     background: rgba(255,255,255,0.05);
     height: auto;
@@ -33,10 +33,10 @@ pre {
     padding: 10px;
     border-radius: 5px;
 }
-.cm-s-editor .CodeMirror-cursor {
+.editor .CodeMirror-cursor {
     border-left-width: 2px !important;
 }
-.cm-s-editor.CodeMirror-scroll {
+.editor.CodeMirror-scroll {
     overflow-y: hidden;
     overflow-x: auto;
 }

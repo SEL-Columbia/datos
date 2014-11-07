@@ -7,11 +7,15 @@ function Editor(code) {
         autofocus: true,
         indentUnit: 4,
         viewportMargin: Infinity,
-        theme: 'twilight editor'
+        theme: 'twilight'
     });
     
+    // Manually add editor class
+    var wrapper = self.editor.getWrapperElement();
+    $(wrapper).addClass('editor');
+    
     self.$output = $('<div class="output"></div>')
-        .insertAfter(self.editor.getWrapperElement());
+        .insertAfter(wrapper);
         
     self.editor.setOption('extraKeys', {
         'Shift-Enter': function(cm) {
@@ -35,7 +39,14 @@ function Editor(code) {
                 self.$output.append(Editor.prettyprint(out));
             }
             
-            new Editor();
+            
+            // Focus on next editor
+            var nextEditor = self.$output.next('.editor');
+            if (nextEditor.length) {
+                nextEditor[0].CodeMirror.focus();
+            } else {
+                new Editor();
+            }
         }
     });
 }
