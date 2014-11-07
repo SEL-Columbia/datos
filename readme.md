@@ -1,8 +1,6 @@
 # Datos
 
-A lightweight client-side data analysis tool for iPython.
-
-It's like iPython, but for javascript and on the client-side.
+A lightweight client-side data analysis tool.
 
 
 ## Useful links
