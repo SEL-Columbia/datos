@@ -5,7 +5,7 @@ idb = function(name) {
 };
 
 idb.list = function() {
-    // Returns a promise of a list of IndexedDb databases
+    // Returns a promise containing a list of IndexedDb database names
     return new Promise(function(resolve, reject) {
         indexedDB
             .webkitGetDatabaseNames()
@@ -33,20 +33,19 @@ function Database(name) {
     this.name = name;
 }
 
-Database.prototype.getIDB = function(store) {
+Database.prototype.getIDB = function() {
     // Returns a promise containing an IDBDatabase instance
     var self = this;
     return new Promise(function(resolve, reject) {
-        var request = indexedDB.open(self.name);
-        request.onsuccess = function(event) {
-            var db = request.result;
+        var req = indexedDB.open(self.name);
+        req.onsuccess = function(event) {
+            var db = req.result;
             db.onerror = function(event) {
                 throw 'Error creating/accessing IndexedDB';
             };
             resolve(db);
         };
-        request.onerror = function(event) {
-            console.log('what??')
+        req.onerror = function(event) {
             reject(event);
         };
     });
@@ -94,7 +93,7 @@ Database.prototype.removeStore = function(name) {
                         db2.removeObjectStore(name);
                         resolve(true);
                     } catch(e) {
-                        resolve(false);
+                        reject(e);
                     }
                 };
             });
@@ -109,7 +108,7 @@ Database.prototype.store = function(name) {
 function Store(db, name, queue) {
     this.db = db;
     this.name = name;
-    this.queue = queue || [];
+    this.queue = queue || []; // Operations queue
 }
 
 Store.prototype.info = {
@@ -120,7 +119,7 @@ Store.prototype.info = {
 Store.prototype.getIDBStore = function() {
     var self = this;
     return self.db
-        .getIDB(self.name)
+        .getIDB()
         .then(function(db) {
             return db.transaction([self.name], 'readwrite')
                 .objectStore(self.name);
@@ -144,17 +143,20 @@ Store.prototype.get = function(id) {
 };
 
 Store.prototype.add = function(obj) {
-    var self = this;
+    var self = this;    
     return self.getIDBStore()
         .then(function(store) {
             return new Promise(function(resolve, reject) {
-                var request = store.add(obj);
-                request.onsuccess = function(event) {
+                var req = store.add(obj);
+                req.onsuccess = function(e) {
                     // Returns row key
-                    resolve(event.target.result);
+                    resolve(e.target.result);
                 };
-                request.onerror = function(event) {
-                    reject("Error creating/accessing IndexedDB");
+                req.oncomplete = function(e) {
+                    console.log('comp')
+                };
+                req.onerror = function(e) {
+                    reject(e);
                 };
             });
         });
@@ -169,7 +171,7 @@ Store.prototype.addRows = function(rows) {
             for (var i=0, row; row = rows[i]; i++) {
                 store.add(row);
             }
-            console.log('done')
+            //console.log('done')
         });
 };
 
@@ -185,14 +187,14 @@ Store.prototype.saveAll = function() {
         return row;
     }
     this.queue.push(saveRow);
-    this.apply();
+    this.run();
 };
 
-Store.prototype.apply = function() {
+Store.prototype.run = function() {
     var self = this;
-    return self.getIDBStore()
-        .then(function(store) {
-            return new Promise(function(resolve, reject) {
+    return new Promise(function(resolve, reject) {
+        self.getIDBStore()
+            .then(function(store) {
                 store.openCursor().onsuccess = function(event) {
                     var cursor = event.target.result;
                     if (cursor) {
@@ -207,7 +209,7 @@ Store.prototype.apply = function() {
                     }
                 };
             });
-        });
+    });
 };
 
 Store.prototype.all = function() {
