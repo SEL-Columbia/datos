@@ -1,7 +1,21 @@
 
+
+
+
+var headers = ['state','lga','ward','polling_unit','voter_id',
+        'puid','name_1','name_2','name_3','birth_year','birth_month',
+        'birth_day','sex','address','profession','status',
+        'source_file','id']​;
+
+load().then(function(files){
+    console.log('done');
+});
+
+
+
 // $ Loading CSV:
-d.db('nohuck')
-    .store('videos')
+db('nigeria')
+    .store('health')
     .loadCSV();
 
 
