@@ -1,16 +1,32 @@
 
-
-
-
 var headers = ['state','lga','ward','polling_unit','voter_id',
         'puid','name_1','name_2','name_3','birth_year','birth_month',
-        'birth_day','sex','address','profession','status',
-        'source_file','id']​;
+        'birth_day','sex','address','profession','status'];
 
-load().then(function(files){
-    console.log('done');
+upload().then(function(files) {
+    files.forEach(function(file) {
+        console.log('parsing file', file);
+        parseCSV(file, processRow);
+    });
 });
 
+function processRow(row) {
+    console.log('adding row');
+    idb('nigeria').store('test5').add(row);
+}
+
+
+var reader = new CSVReader(file);
+function addRow() {
+    reader.next()
+        .then(function(row) {
+            if (!row) return;
+            idb('nigeria')
+                .store('test5')
+                .add(row)
+                .then(addRow);
+        });
+}
 
 
 // $ Loading CSV:

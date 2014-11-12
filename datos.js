@@ -60,7 +60,7 @@ Editor.restore = function() {
     var codes = localStorage.codes ? JSON.parse(localStorage.codes) : [];
     if (codes.length) { 
         codes.forEach(function(code) {
-            new Editor(code).run();
+            new Editor(code);
         });
     } else {
         new Editor();
@@ -104,47 +104,155 @@ function upload() {
     // http://stackoverflow.com/questions/26056540/javascript-using-file-reader-to-read-line-by-line
     // http://updates.html5rocks.com/2012/06/How-to-convert-ArrayBuffer-to-and-from-String
     
-    var files = new Bacon.Bus();
-    $('<input type="file" multiple class="file_picker">')
-        .appendTo(Editor.current.$output)
-        .change(function() {
-            _.each(this.files, function(file) {
-                files.push(file);
-            });
-        })
-        .show();
-    
-    function fileStream(file) {
-        return Bacon.fromBinder(function(sink) {
-            var start = 0;
-            var chunk = 5 * 1024 * 1024;
-            
-            function readChunk(start) {
-                var end = start + chunk;
-                var reader = new FileReader();
-                var blob = file.slice(start, end);
-                reader.onload = function(e) {
-                    sink(e.target.result);
-                    if (end < file.size) {
-                        readChunk(end, end + chunk);
-                    } else {
-                        sink(new Bacon.End())
-                    }
-                };
-                reader.readAsText(blob);
-            }
-            readChunk(start);
-            return function() {};
-        });
-    }
-    
-    return files.map(fileStream);
+    return new Promise(function(resolve, reject) {
+        $('<input type="file" multiple class="file_picker">')
+            .appendTo(Editor.current.$output)
+            .change(function() {
+                var files = Array.prototype.slice.call(this.files, 0);
+                resolve(files);
+            })
+            .show();
+    });
 };
 
 
+function textStream(file) {
+    return Bacon.fromBinder(function(sink) {
+        var start = 0;
+        var chunk = 5 * 1024 * 1024;
+        
+        function readChunk(start) {
+            var end = start + chunk;
+            var reader = new FileReader();
+            var blob = file.slice(start, end);
+            reader.onload = function(e) {
+                if (end >= file.size) {
+                    console.log('end');
+                    sink(new Bacon.End());
+                } else {
+                    sink(e.target.result);
+                    readChunk(end, end + chunk);
+                }
+            };
+            reader.readAsText(blob);
+        }
+        readChunk(start);
+        return function() {};
+    });
+}
 
-function parseCSV(stream, options) {
-    var rows = new Bacon.Bus();
+function textStream2(file) {
+    return Kefir.fromBinder(function(emitter) {
+        var start = 0;
+        var chunk = 5 * 1024 * 1024;
+        
+        function readChunk(start) {
+            var end = start + chunk;
+            var reader = new FileReader();
+            var blob = file.slice(start, end);
+            reader.onload = function(e) {
+                if (end >= file.size) {
+                    emitter.end();
+                } else {
+                    emitter.emit(e.target.result);
+                    readChunk(end, end + chunk);
+                }
+            };
+            reader.readAsText(blob);
+        }
+        readChunk(start);
+        return function() {};
+    });
+}
+
+
+function CSVReader(file, options) {
+    this.options = _.defaults(options || {}, {
+        headers: null,
+        delim: ','
+    });
+    this.file = file;
+    this.headers = options.headers;
+    this.start = 0;
+    this.chunk = 5 * 1024 * 1024;
+    this.buffer = '';
+    this.lines = [];
+    this.rows = [];
+    this.done = false;
+}
+
+CSVReader.prototype.next = function() {
+    var self = this;
+    return new Promise(function(resolve, reject) {
+        if (self.rows.length) {
+            resolve(self.rows.shift());
+        } else {
+            self.loadRows(function() {
+                if (self.done) {
+                    resolve(null);
+                } else {
+                    resolve(self.rows.shift());
+                }
+            });
+        }
+    });
+};
+
+CSVReader.prototype.loadRows = function(cb) {
+    console.log('load rows')
+    var self = this;
+    var end = self.start + self.chunk;
+    var reader = new FileReader();
+    var blob = self.file.slice(self.start, end);
+        
+    reader.onload = function(e) {
+        self.buffer += e.target.result;
+        if (end >= self.file.size) {
+            self.done = true;
+        } else {
+            self.start = end;
+        }
+        self.getRows();
+        
+        if (self.rows.length || self.done) {
+            cb();
+        } else {
+            self.loadRows(cb);
+        }
+    };
+    reader.readAsText(blob);
+};
+
+CSVReader.prototype.getRows = function() {
+    var self = this;
+    var lines = [];
+    
+    // Add new lines from buffer
+    if (self.buffer.indexOf(self.options.delim) != -1) {
+        var newlines = self.buffer.match(/[^\r\n]+/g);
+        self.buffer = newlines.pop() || '';
+        lines = lines.concat(newlines);
+    }
+    if (self.done) lines.push(buffer);
+    
+    // Parse header
+    if (!self.headers && lines.length) {
+        self.headers = lines.shift().split(self.options.delim);
+    }
+    
+    // Parse lines
+    lines.forEach(function(line) {
+        var values = line.split(self.options.delim);
+        var row = {};
+        for (var i=0; i < this.headers.length; i++) {
+            row[this.headers[i]] = values[i];
+        }
+        self.rows.push(row);
+    }); 
+};
+
+function parseCSV2(file, options) {
+    var rows = Kefir.emitter();
     var options = _.defaults(options || {}, {
         headers: null,
         delim: ','
@@ -153,9 +261,10 @@ function parseCSV(stream, options) {
     var buffer = '';
     var lines = [];
     
-    stream.onValue(parse)
+    stream.onValue(parse);
     stream.onEnd(function(text) {
         parse(text, true);
+        rows.end();
     });
     
     function parse(text, end) {
@@ -180,12 +289,13 @@ function parseCSV(stream, options) {
             for (var i=0; i < headers.length; i++) {
                 row[headers[i]] = values[i];
             }
-            rows.push(row);
+            rows.emit(row);
         });
         lines = [];
     }
     return rows;
 }
+
 
 
 function loadScripts() {
