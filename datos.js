@@ -1,4 +1,49 @@
 
+// Overwrite console.log -- dirty, i know
+var _log = console.log
+console.log = function() {
+    _log.apply(this, arguments);
+};
+
+
+Console = {};
+Console.prettyprint = function(what) {
+    if (!what) {
+        return what;
+    } else if (what.length != undefined) {
+        var items = [];
+        for (var i=0, item; item=what[i]; i++) {
+            items.push(item.toString());
+        }
+        return '[' + items.join(',') + ']';
+    }
+    return what.toString();
+};
+
+Console.saveAll = function() {
+    var codes = [];
+    $('.editor')
+        .each(function() {
+            var code = this.CodeMirror.getValue();
+            if (code) codes.push(code);
+        });
+    localStorage.codes = JSON.stringify(codes);
+};
+
+Console.restore = function() {
+    var codes = localStorage.codes ? JSON.parse(localStorage.codes) : [];
+    if (codes.length) { 
+        codes.forEach(function(code) {
+            new Editor(code);
+        });
+    } else {
+        new Editor();
+    }
+};
+
+
+
+
 function Editor(code) {
     var self = this;
     self.editor = CodeMirror($('.content')[0], {
@@ -75,7 +120,7 @@ Editor.prototype.run = function(code) {
     } catch (e) {
         var out = e;
     }
-    Editor.saveAll();
+    Console.saveAll();
     
     if (out && out.then) {
         // Output the value of a promise
@@ -95,7 +140,7 @@ Editor.prototype.run = function(code) {
     }
 };
 
-Editor.restore();
+Console.restore();
 
 
 
@@ -116,57 +161,26 @@ function upload() {
 };
 
 
-function textStream(file) {
-    return Bacon.fromBinder(function(sink) {
-        var start = 0;
-        var chunk = 5 * 1024 * 1024;
-        
-        function readChunk(start) {
-            var end = start + chunk;
-            var reader = new FileReader();
-            var blob = file.slice(start, end);
-            reader.onload = function(e) {
-                if (end >= file.size) {
-                    console.log('end');
-                    sink(new Bacon.End());
-                } else {
-                    sink(e.target.result);
-                    readChunk(end, end + chunk);
-                }
-            };
-            reader.readAsText(blob);
-        }
-        readChunk(start);
-        return function() {};
-    });
-}
-
-function textStream2(file) {
-    return Kefir.fromBinder(function(emitter) {
-        var start = 0;
-        var chunk = 5 * 1024 * 1024;
-        
-        function readChunk(start) {
-            var end = start + chunk;
-            var reader = new FileReader();
-            var blob = file.slice(start, end);
-            reader.onload = function(e) {
-                if (end >= file.size) {
-                    emitter.end();
-                } else {
-                    emitter.emit(e.target.result);
-                    readChunk(end, end + chunk);
-                }
-            };
-            reader.readAsText(blob);
-        }
-        readChunk(start);
-        return function() {};
+function loadScripts() {
+    var urls = Array.prototype.slice.call(arguments);
+    return new Promise(function(resolve, reject) {
+        var loaded = 0;
+        urls.forEach(function(url) {
+            $.getScript(url)
+                .done(function() {
+                    loaded++;
+                    if (loaded == urls.length) resolve();
+                })
+                .fail(function() {
+                    reject('Error loading script: ' + url);
+                });
+        });
     });
 }
 
 
-function CSVReader(file, options) {
+
+function NextCSV(file, options) {
     this.options = _.defaults(options || {}, {
         headers: null,
         delim: ','
@@ -181,25 +195,28 @@ function CSVReader(file, options) {
     this.done = false;
 }
 
-CSVReader.prototype.next = function() {
+NextCSV.prototype.next = function() {
+    // Returns 
     var self = this;
     return new Promise(function(resolve, reject) {
         if (self.rows.length) {
-            resolve(self.rows.shift());
+            resolve(self.rows);
+            self.rows = [];
         } else {
-            self.loadRows(function() {
-                if (self.done) {
+            self._load(function(done) {
+                if (done) {
                     resolve(null);
                 } else {
-                    resolve(self.rows.shift());
+                    resolve(self.rows);
+                    self.rows = [];
                 }
             });
         }
     });
 };
 
-CSVReader.prototype.loadRows = function(cb) {
-    console.log('load rows')
+NextCSV.prototype._load = function(done) {
+    // Loads buffer until a row is parsed
     var self = this;
     var end = self.start + self.chunk;
     var reader = new FileReader();
@@ -207,23 +224,24 @@ CSVReader.prototype.loadRows = function(cb) {
         
     reader.onload = function(e) {
         self.buffer += e.target.result;
-        if (end >= self.file.size) {
-            self.done = true;
-        } else {
-            self.start = end;
-        }
-        self.getRows();
+        self._parse();
         
-        if (self.rows.length || self.done) {
-            cb();
+        if (end >= self.file.size) {
+            done(true);
+        }
+        self.start = end;
+        
+        if (self.rows.length) {
+            done(false);
         } else {
-            self.loadRows(cb);
+            self._load(done);
         }
     };
     reader.readAsText(blob);
 };
 
-CSVReader.prototype.getRows = function() {
+NextCSV.prototype._parse = function() {
+    // Parses buffer into objects
     var self = this;
     var lines = [];
     
@@ -251,69 +269,7 @@ CSVReader.prototype.getRows = function() {
     }); 
 };
 
-function parseCSV2(file, options) {
-    var rows = Kefir.emitter();
-    var options = _.defaults(options || {}, {
-        headers: null,
-        delim: ','
-    });
-    var headers = options.headers;
-    var buffer = '';
-    var lines = [];
-    
-    stream.onValue(parse);
-    stream.onEnd(function(text) {
-        parse(text, true);
-        rows.end();
-    });
-    
-    function parse(text, end) {
-        buffer += text;
-        // Add new lines from buffer
-        if (buffer.indexOf(options.delim) != -1) {
-            var newlines = buffer.match(/[^\r\n]+/g);
-            buffer = newlines.pop() || '';
-            lines = lines.concat(newlines);
-        }
-        if (end) lines.push(buffer);
-        
-        // Parse header
-        if (!headers && lines.length) {
-            headers = lines.shift().split(options.delim);
-        }
-        
-        // Parse rows
-        lines.forEach(function(line) {
-            var values = line.split(options.delim);
-            var row = {};
-            for (var i=0; i < headers.length; i++) {
-                row[headers[i]] = values[i];
-            }
-            rows.emit(row);
-        });
-        lines = [];
-    }
-    return rows;
-}
 
-
-
-function loadScripts() {
-    var urls = Array.prototype.slice.call(arguments);
-    return new Promise(function(resolve, reject) {
-        var loaded = 0;
-        urls.forEach(function(url) {
-            $.getScript(url)
-                .done(function() {
-                    loaded++;
-                    if (loaded == urls.length) resolve();
-                })
-                .fail(function() {
-                    reject('Error loading script: ' + url);
-                });
-        });
-    });
-}
 
 
 

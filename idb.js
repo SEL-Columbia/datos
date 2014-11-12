@@ -162,16 +162,33 @@ Store.prototype.add = function(obj) {
         });
 };
 
-Store.prototype.addRows = function(rows) {
+Store.prototype.load = function(objs) {
+    // Loads rows fast
+    // Returns a promise that will trigger when loading has finished
+
     var self = this;
+    
+    function addRows(resolve, revoke) {
+        var done = 0;
+        objs.forEach(function(obj) {
+            var req = store.add(obj);
+            req.onsuccess = function(e) {
+                done++;
+                if (done == objs.length) {
+                    resolve();
+                }
+            };
+            req.onerror = function(e) {
+                reject(e);
+            };
+        });
+    }
+    
     return self.getIDBStore()
         .then(function(store) {
             // TODO: figure out why transactions are interrupted by console.log()
             // https://www.youtube.com/watch?v=2Oe9Plp6bdE
-            for (var i=0, row; row = rows[i]; i++) {
-                store.add(row);
-            }
-            //console.log('done')
+            return new Promise(addRows);
         });
 };
 
