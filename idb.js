@@ -167,14 +167,23 @@ Store.prototype.load = function(objs) {
     // Returns a promise that will trigger when loading has finished
 
     var self = this;
+    var index = 0;
+    var pending = 0;
     
     function addRows(resolve, revoke) {
-        var done = 0;
-        objs.forEach(function(obj) {
+        console.log('addrows');
+        var end = index + (10 - pending);
+        var queue = objs.slice(index, end);
+        index = end;
+        
+        queue.forEach(function(obj) {
             var req = store.add(obj);
+            pending++;
             req.onsuccess = function(e) {
-                done++;
-                if (done == objs.length) {
+                pending--;
+                if (index < objs.length - 1) {
+                    addRows(resolve, revoke);
+                } else {
                     resolve();
                 }
             };

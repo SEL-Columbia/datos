@@ -1,32 +1,71 @@
-
 var headers = ['state','lga','ward','polling_unit','voter_id',
         'puid','name_1','name_2','name_3','birth_year','birth_month',
         'birth_day','sex','address','profession','status'];
 
 upload().then(function(files) {
-    files.forEach(function(file) {
-        console.log('parsing file', file);
-        parseCSV(file, processRow);
-    });
+    loadFiles(files);
 });
 
-function processRow(row) {
-    console.log('adding row');
-    idb('nigeria').store('test5').add(row);
+
+function loadFiles(files) {
+    var file = files.shift();
+    if (!file) return;
+    
+    console.log('parsing file', file);
+    var reader = new NextCSV(file, {
+        headers: headers,
+        delim: '|'
+    });
+    addRows(reader, function() {
+        loadFiles(files);
+    });
 }
 
+i = 0;
 
-var reader = new CSVReader(file);
-function addRow() {
+function addRows(reader, end) {
     reader.next()
-        .then(function(row) {
-            if (!row) return;
+        .then(function(rows) {
+        	console.log(rows);
+        	i++;
+            if (!rows) {
+                return loadFiles(files);
+            }
             idb('nigeria')
-                .store('test5')
-                .add(row)
-                .then(addRow);
+                .store('test6')
+                .load(rows)
+                .then(function() {
+                	addRows(reader);
+            	});
         });
 }
+
+
+
+
+function testIter() {
+    i = 0;
+    start = new Date();
+    idb('nigeria')
+        .store('test6')
+        .each(function(row){
+            i++;
+        })
+        .run()
+    	.catch(console.log)
+	    .then(function(){
+            var end  = new Date();
+            var time = (end.getTime() - start.getTime()) / 1000;
+            console.log(i, time);
+        });
+}
+
+
+testIter();
+
+
+
+
 
 
 // $ Loading CSV:
