@@ -3,6 +3,17 @@
 A lightweight client-side data analysis tool.
 
 
+## Gotchas
+
+Code blocks don't share local scope. This means variables declared with `var` are not accessible between code blocks. One way to work around this is to declare variables globally.
+
+This feature is somewhat difficult to implement, but may be added in the future.
+1. Regex to scan code string for `var` declarations
+2. Append and return local variables in an object `{a: 1, b:2, c: 3}`
+4. Run next code block inside a `function(a,b,c){}`
+
+
+
 ## Useful links
 
 - http://pandas.pydata.org/

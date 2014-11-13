@@ -31,11 +31,6 @@ App.startWorker = function() {
             editor.$output.append(data.out);
         }
     };
-    worker.onerror = function(e) {
-        var data = e.data;
-        var editor = self.editors[data.id];
-        editor.$output.text(e);
-    };
     return worker;
 };
 

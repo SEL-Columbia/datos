@@ -17,12 +17,10 @@ self.onmessage = function(e) {
         try {
             var out = eval(data.code);
         } catch(e) {
+            console.log(e)
             var out = e.toString();
         }
-        postMessage({
-            id: data.id,
-            out: out
-        });
+        postMessage({id: data.id, out: out});
     }
 };
 
