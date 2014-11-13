@@ -28,8 +28,11 @@ App.startWorker = function() {
             var func = Function('return ' + data.cb)();
             func.apply(null, data.args);
         } else {
-            editor.$output.append(data.out);
+            editor.$output.append('<div>' + data.out + '</div>');
         }
+    };
+    worker.onerror = function(e) {
+        console.log('worker error', e);
     };
     return worker;
 };
@@ -97,6 +100,8 @@ function Editor(code) {
         'Shift-Enter': function(cm) {
             // Save all editor code
             App.save();
+            // Clear output
+            self.$output.empty();
             
             // Run code in worker
             App.runWorker(self.id, cm.getValue());

@@ -144,61 +144,52 @@ Store.prototype.get = function(id) {
 
 Store.prototype.add = function(obj) {
     var self = this;    
-    return self.getIDBStore()
-        .then(function(store) {
-            return new Promise(function(resolve, reject) {
+    return new Promise(function(resolve, reject) {
+        self.getIDBStore()
+            .then(function(store) {
+                // TODO: figure out why transactions are interrupted by console.log()
+                // https://www.youtube.com/watch?v=2Oe9Plp6bdE
                 var req = store.add(obj);
                 req.onsuccess = function(e) {
                     // Returns row key
                     resolve(e.target.result);
                 };
-                req.oncomplete = function(e) {
-                    console.log('comp')
-                };
                 req.onerror = function(e) {
                     reject(e);
                 };
             });
-        });
+    });
 };
 
 Store.prototype.load = function(objs) {
     // Loads rows fast
     // Returns a promise that will trigger when loading has finished
-
     var self = this;
     var index = 0;
     var pending = 0;
     
-    function addRows(resolve, revoke) {
-        console.log('addrows');
+    function addObjs(resolve, revoke) {
         var end = index + (10 - pending);
         var queue = objs.slice(index, end);
         index = end;
         
         queue.forEach(function(obj) {
-            var req = store.add(obj);
             pending++;
-            req.onsuccess = function(e) {
-                pending--;
-                if (index < objs.length - 1) {
-                    addRows(resolve, revoke);
-                } else {
-                    resolve();
-                }
-            };
-            req.onerror = function(e) {
-                reject(e);
-            };
+            self.add(obj)
+                .then(function() {
+                    pending--;
+                    if (index < objs.length - 1) {
+                        addObjs(resolve, revoke);
+                    } else {
+                        resolve();
+                    }
+                })
         });
     }
     
-    return self.getIDBStore()
-        .then(function(store) {
-            // TODO: figure out why transactions are interrupted by console.log()
-            // https://www.youtube.com/watch?v=2Oe9Plp6bdE
-            return new Promise(addRows);
-        });
+    return new Promise(function(resolve, revoke) {
+        addObjs(resolve, revoke);
+    });
 };
 
 Store.prototype.each = function(cb) {

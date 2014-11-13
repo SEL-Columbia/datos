@@ -1,4 +1,6 @@
+importScripts('worker-lib.js');
 importScripts('idb.js');
+
 
 // Overwrite console.log -- dirty, i know
 var _log = console.log
@@ -64,15 +66,13 @@ function loadFiles(files) {
 }
 
 
-function addRows(reader, end) {
+function addRows(reader, cb) {
     reader.next()
         .then(function(rows) {
-            console.log(rows);
-            if (!rows) {
-                return loadFiles(files);
-            }
+            console.log('addRows', rows)
+            if (!rows) return cb();
             idb('nigeria')
-                .store('test6')
+                .store('test')
                 .load(rows)
                 .then(function() {
                     addRows(reader);
