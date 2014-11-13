@@ -28,7 +28,7 @@ App.startWorker = function() {
             var func = Function('return ' + data.cb)();
             func.apply(null, data.args);
         } else {
-            editor.$output.text(data.out);
+            editor.$output.append(data.out);
         }
     };
     worker.onerror = function(e) {
@@ -44,12 +44,13 @@ App.newEditor = function(code) {
     this.editors[editor.id] = editor;
 };
 
-App.runCode = function(id, code) {
+App.runWorker = function(id, code, args) {
     // Runs code in worker
     this.worker.postMessage({
-        type: 'run',
+        type: 'code',
         id: id,
-        code: code
+        code: code,
+        args: args
     });
 };
 
@@ -103,7 +104,7 @@ function Editor(code) {
             App.save();
             
             // Run code in worker
-            App.runCode(self.id, cm.getValue());
+            App.runWorker(self.id, cm.getValue());
             //self.editor.run(cm.getValue());
             
             // Focus on next editor

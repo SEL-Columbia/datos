@@ -6,14 +6,14 @@ console.log = function() {
     _log.apply(this, arguments);
 };
 
-_ID = null; // ID of code editor that last ran code
+DATA = null; // Last received data
 
 
 self.onmessage = function(e) {
     var data = e.data;
     console.log('worker received', data);
-    if (data.type == 'run') {
-        _ID = data.id;
+    DATA = data;
+    if (data.type == 'code') {
         try {
             var out = eval(data.code);
         } catch(e) {
@@ -27,11 +27,11 @@ self.onmessage = function(e) {
 };
 
 
-function runMain() {
-    // Runs some code in the main thread    
+function runMain(cb) {
+    // Runs some code in the main thread
     postMessage({
-        cb: args[0].toString(),
-        args: args.slice(1)
+        cb: cb.toString(),
+        args: Array.prototype.slice.call(arguments, 1)
     });
 }
 
@@ -44,11 +44,44 @@ function upload() {
             .appendTo(editor.$output)
             .change(function() {
                 var files = Array.prototype.slice.call(this.files, 0);
-                App.worker.postMessage(files);
+                App.runWorker(id, 'loadFiles(DATA.args);', files);
             })
             .show();
-    }, _ID);
+    }, DATA.id);
 }
+
+function loadFiles(files) {
+    console.log('loading!!')
+    var file = files.shift();
+    if (!file) return;
+    
+    console.log('parsing file', file);
+    var reader = new NextCSV(file, {
+        headers: headers,
+        delim: '|'
+    });
+    addRows(reader, function() {
+        loadFiles(files);
+    });
+}
+
+
+function addRows(reader, end) {
+    reader.next()
+        .then(function(rows) {
+            console.log(rows);
+            if (!rows) {
+                return loadFiles(files);
+            }
+            idb('nigeria')
+                .store('test6')
+                .load(rows)
+                .then(function() {
+                    addRows(reader);
+                });
+        });
+}
+
 
 
 function NextCSV(file, options) {
@@ -61,7 +94,6 @@ function NextCSV(file, options) {
     this.start = 0;
     this.chunk = 5 * 1024 * 1024;
     this.buffer = '';
-    this.lines = [];
     this.rows = [];
     this.done = false;
 }
@@ -86,7 +118,7 @@ NextCSV.prototype.next = function() {
     });
 };
 
-NextCSV.prototype._load = function(done) {
+NextCSV.prototype._load = function(cb) {
     // Loads buffer until a row is parsed
     var self = this;
     var end = self.start + self.chunk;
@@ -98,14 +130,14 @@ NextCSV.prototype._load = function(done) {
         self._parse();
         
         if (end >= self.file.size) {
-            done(true);
+            return cb(true);
         }
         self.start = end;
         
         if (self.rows.length) {
-            done(false);
+            cb(false);
         } else {
-            self._load(done);
+            self._load(cb);
         }
     };
     reader.readAsText(blob);
