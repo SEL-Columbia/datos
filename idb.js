@@ -243,16 +243,15 @@ Store.prototype.all = function() {
             });
         });
 };
-count = 0;
 
 Store.prototype.count = function() {
     var self = this;
     return new Promise(function(resolve, reject) {
         self.getIDBStore()
             .then(function(store) {
-                //var count = 0;
-                store.openCursor().onsuccess = function(event) {
-                    var cursor = event.target.result;
+                var count = 0;
+                store.openCursor().onsuccess = function(e) {
+                    var cursor = e.target.result;
                     if (cursor) {
                         count++;
                         cursor.continue();

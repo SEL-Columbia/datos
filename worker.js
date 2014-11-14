@@ -2,24 +2,28 @@ importScripts('worker-lib.js');
 importScripts('idb.js');
 
 
-// Overwrite console.log -- dirty, i know
+DATA = {}; // Last received data
 var _log = console.log
-console.log = function() {
-    _log.apply(this, arguments);
-};
-
-DATA = null; // Last received data
-
 
 self.onmessage = function(e) {
     var data = e.data;
     console.log('worker received', data);
     DATA = data;
     if (data.type == 'code') {
+        // Overwrite console.log -- dirty, i know
+        self.console._log = self.console._log || self.console.log;
+        self.console.log = function(arg) {
+            postMessage({
+                type: 'log',
+                id: data.id,
+                out: arg.toString()
+            });
+            self.console._log.apply(this, arguments);
+        };
+        
         try {
             var out = eval(data.code);
         } catch(e) {
-            console.log(e)
             var out = e.toString();
         }
         postMessage({id: data.id, out: out});
@@ -31,6 +35,7 @@ function runMain(cb) {
     // Runs some code in the main thread
     postMessage({
         cb: cb.toString(),
+        type: 'callback',
         args: Array.prototype.slice.call(arguments, 1)
     });
 }
@@ -51,17 +56,17 @@ function upload() {
 }
 
 function loadFiles(files) {
-    console.log('loading!!')
     var file = files.shift();
     if (!file) return;
     
-    console.log('parsing file', file);
+    console.log('Remaining', files.length);
+    console.log('Loading', file);
     var reader = new NextCSV(file, {
         headers: headers,
         delim: '|'
     });
     addRows(reader, function() {
-        console.log('done!');
+        console.log('Done loading', file);
         loadFiles(files);
     });
 }
@@ -70,7 +75,7 @@ function loadFiles(files) {
 function addRows(reader, cb) {
     reader.next()
         .then(function(rows) {
-            console.log('addRows');
+            console.log('Loading rows...');
             if (!rows) return cb();
             idb('nigeria')
                 .store('test')

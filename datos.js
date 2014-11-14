@@ -24,7 +24,7 @@ App.startWorker = function() {
         console.log('worker sent', e.data);
         var data = e.data;
         var editor = self.editors[data.id];
-        if (data.cb) {
+        if (data.type === 'callback') {
             var func = Function('return ' + data.cb)();
             func.apply(null, data.args);
         } else {
