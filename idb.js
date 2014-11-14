@@ -161,34 +161,31 @@ Store.prototype.add = function(obj) {
     });
 };
 
+loaded =0;
 Store.prototype.load = function(objs) {
-    // Loads rows fast
+    // Bulk loads rows
     // Returns a promise that will trigger when loading has finished
+    //
+    // http://stackoverflow.com/questions/22247614/optimized-bulk-chunk-upload-of-objects-into-indexeddb
+    // http://stackoverflow.com/questions/10471759/inserting-large-quantities-in-indexeddbs-objectstore-blocks-ui
     var self = this;
-    var index = 0;
-    var pending = 0;
     
-    function addObjs(resolve, revoke) {
-        var end = index + (10 - pending);
-        var queue = objs.slice(index, end);
-        index = end;
-        
-        queue.forEach(function(obj) {
-            pending++;
-            self.add(obj)
-                .then(function() {
-                    pending--;
-                    if (index < objs.length - 1) {
-                        addObjs(resolve, revoke);
-                    } else {
-                        resolve();
-                    }
-                })
-        });
-    }
-    
-    return new Promise(function(resolve, revoke) {
-        addObjs(resolve, revoke);
+    return new Promise(function(resolve, reject) {
+        self.getIDBStore()
+            .then(function(store) {
+                var index = 0;
+                
+                function addNext() {
+                    loaded++;
+                    
+                    var obj = objs[index++];
+                    if (!obj) return resolve();
+                    var req = store.add(obj);
+                    req.onsuccess = addNext;
+                    req.onerror = reject;
+                }
+                addNext();
+            });
     });
 };
 
@@ -246,6 +243,26 @@ Store.prototype.all = function() {
             });
         });
 };
+count = 0;
+
+Store.prototype.count = function() {
+    var self = this;
+    return new Promise(function(resolve, reject) {
+        self.getIDBStore()
+            .then(function(store) {
+                //var count = 0;
+                store.openCursor().onsuccess = function(event) {
+                    var cursor = event.target.result;
+                    if (cursor) {
+                        count++;
+                        cursor.continue();
+                    } else {
+                        resolve(count);
+                    }
+                };
+            });
+    });
+}
 
 
 })();

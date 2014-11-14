@@ -15,7 +15,7 @@ This feature is somewhat difficult to implement, but may be added in the future.
 
 
 ## Useful links
-
+- [Quota research](http://www.html5rocks.com/en/tutorials/offline/quota-research/)
 - http://pandas.pydata.org/
 - [Intro to reactive programming](https://gist.github.com/staltz/868e7e9bc2a7b8c1f754)
 - http://baconjs.github.io/index.html

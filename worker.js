@@ -61,6 +61,7 @@ function loadFiles(files) {
         delim: '|'
     });
     addRows(reader, function() {
+        console.log('done!');
         loadFiles(files);
     });
 }
@@ -69,13 +70,13 @@ function loadFiles(files) {
 function addRows(reader, cb) {
     reader.next()
         .then(function(rows) {
-            console.log('addRows', rows)
+            console.log('addRows');
             if (!rows) return cb();
             idb('nigeria')
                 .store('test')
                 .load(rows)
                 .then(function() {
-                    addRows(reader);
+                    addRows(reader, cb);
                 });
         });
 }
