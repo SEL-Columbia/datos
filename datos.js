@@ -215,12 +215,10 @@ function download($output, data) {
 
 
 function NextCSV(file, options) {
-    this.options = _.defaults(options || {}, {
-        headers: null,
-        delim: ','
-    });
+    options = options || {};
     this.file = file;
-    this.headers = this.options.headers;
+    this.headers = options.headers;
+    this.delim = options.delim || ',';
     this.start = 0;
     this.chunk = 5 * 1024 * 1024;
     this.buffer = '';
@@ -279,7 +277,7 @@ NextCSV.prototype._parse = function() {
     var lines = [];
     
     // Add new lines from buffer
-    if (self.buffer.indexOf(self.options.delim) != -1) {
+    if (self.buffer.indexOf(self.delim) != -1) {
         var newlines = self.buffer.match(/[^\r\n]+/g);
         self.buffer = newlines.pop() || '';
         lines = lines.concat(newlines);
@@ -288,15 +286,15 @@ NextCSV.prototype._parse = function() {
     
     // Parse header
     if (!self.headers && lines.length) {
-        self.headers = lines.shift().split(self.options.delim);
+        self.headers = lines.shift().split(self.delim);
     }
     
     // Parse lines
     lines.forEach(function(line) {
-        var values = line.split(self.options.delim);
+        var values = line.split(self.delim);
         var row = {};
-        for (var i=0; i < this.headers.length; i++) {
-            row[this.headers[i]] = values[i];
+        for (var i=0; i < self.headers.length; i++) {
+            row[self.headers[i]] = values[i];
         }
         self.rows.push(row);
     }); 
