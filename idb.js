@@ -116,19 +116,19 @@ Store.prototype.info = {
     returns: null
 };
 
-Store.prototype.getIDBStore = function() {
+Store.prototype.getIDBStore = function(mode) {
     var self = this;
     return self.db
         .getIDB()
         .then(function(db) {
-            return db.transaction([self.name], 'readwrite')
+            return db.transaction([self.name], mode)
                 .objectStore(self.name);
         });
 };
 
 Store.prototype.get = function(id) {
     var self = this;
-    return self.getIDBStore()
+    return self.getIDBStore('readonly')
         .then(function(store) {
             return new Promise(function(resolve, reject) {
                 var request = store.get(id);
@@ -145,7 +145,7 @@ Store.prototype.get = function(id) {
 Store.prototype.add = function(obj) {
     var self = this;    
     return new Promise(function(resolve, reject) {
-        self.getIDBStore()
+        self.getIDBStore('readwrite')
             .then(function(store) {
                 // TODO: figure out why transactions are interrupted by console.log()
                 // https://www.youtube.com/watch?v=2Oe9Plp6bdE
@@ -171,7 +171,7 @@ Store.prototype.load = function(objs) {
     var self = this;
     
     return new Promise(function(resolve, reject) {
-        self.getIDBStore()
+        self.getIDBStore('readwrite')
             .then(function(store) {
                 var index = 0;
                 
@@ -201,25 +201,30 @@ Store.prototype.saveAll = function() {
         return row;
     }
     this.queue.push(saveRow);
-    this.run();
+    return this.run('readwrite');
 };
 
-Store.prototype.run = function() {
+Store.prototype.run = function(mode) {
     var self = this;
+    mode = mode || 'readonly';
     return new Promise(function(resolve, reject) {
-        self.getIDBStore()
+        self.getIDBStore(mode)
             .then(function(store) {
                 store.openCursor().onsuccess = function(event) {
                     var cursor = event.target.result;
                     if (cursor) {
                         var row = cursor.value;
                         row.id = cursor.key;
-                        self.queue.forEach(function(fn) {
-                            row = fn.call(window, row, store);
-                        });
+                        
+                        for (var i=0, fn; fn=self.queue[i]; i++) {
+                            row = fn.call(null, row, store);
+                            if (row === false) {
+                                return resolve();                                
+                            }
+                        }
                         cursor.continue();
                     } else {
-                        resolve(true);
+                        resolve();
                     }
                 };
             });
@@ -227,41 +232,35 @@ Store.prototype.run = function() {
 };
 
 Store.prototype.all = function() {
-    return this.getIDBStore()
-        .then(function(store) {
-            return new Promise(function(resolve, reject) {
-                var rows = [];
-                store.openCursor().onsuccess = function(event) {
-                    var cursor = event.target.result;
-                    if (cursor) {
-                        rows.push(cursor.value);
-                        cursor.continue();
-                    } else {
-                        resolve(rows);
-                    }
-                };
-            });
+    var self = this;
+    var rows = [];
+    self.queue.push(function(row) {
+        rows.push(row);
+    });
+    return self.run()
+        .then(function() {
+            return rows;
         });
 };
 
+Store.prototype.first = function(n) {
+    return this.each(function(row) {
+        return n-- ? row : false;
+    });
+};
+
+
 Store.prototype.count = function() {
     var self = this;
-    return new Promise(function(resolve, reject) {
-        self.getIDBStore()
-            .then(function(store) {
-                var count = 0;
-                store.openCursor().onsuccess = function(e) {
-                    var cursor = e.target.result;
-                    if (cursor) {
-                        count++;
-                        cursor.continue();
-                    } else {
-                        resolve(count);
-                    }
-                };
-            });
+    var count = 0;
+    self.queue.push(function(row) {
+        count++;
     });
-}
+    return self.run()
+        .then(function() {
+            return count;
+        });
+};
 
 
 })();
