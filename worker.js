@@ -3,24 +3,13 @@ importScripts('idb.js');
 
 
 DATA = {}; // Last received data
-var _log = console.log
+var _console = console;
 
 self.onmessage = function(e) {
     var data = e.data;
     console.log('worker received', data);
     DATA = data;
-    if (data.type == 'code') {
-        // Overwrite console.log -- dirty, i know
-        self.console._log = self.console._log || self.console.log;
-        self.console.log = function(arg) {
-            postMessage({
-                type: 'log',
-                id: data.id,
-                out: arg.toString()
-            });
-            self.console._log.apply(this, arguments);
-        };
-        
+    if (data.type == 'code') {        
         try {
             var out = eval(data.code);
         } catch(e) {
