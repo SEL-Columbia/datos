@@ -220,7 +220,7 @@ function NextCSV(file, options) {
         delim: ','
     });
     this.file = file;
-    this.headers = options.headers;
+    this.headers = this.options.headers;
     this.start = 0;
     this.chunk = 5 * 1024 * 1024;
     this.buffer = '';
