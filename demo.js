@@ -2,68 +2,37 @@ var headers = ['state','lga','ward','polling_unit','voter_id',
         'puid','name_1','name_2','name_3','birth_year','birth_month',
         'birth_day','sex','address','profession','status'];
 
-upload().then(function(files) {
-    loadFiles(files);
-});
-
 
 function loadFiles(files) {
     var file = files.shift();
     if (!file) return;
     
-    console.log('parsing file', file);
+    console.log('Remaining', files.length);
+    console.log('Loading', file);
     var reader = new NextCSV(file, {
         headers: headers,
         delim: '|'
     });
     addRows(reader, function() {
+        console.log('Done loading', file);
         loadFiles(files);
     });
 }
 
-i = 0;
 
-function addRows(reader, end) {
+function addRows(reader, cb) {
     reader.next()
         .then(function(rows) {
-        	console.log(rows);
-        	i++;
-            if (!rows) {
-                return loadFiles(files);
-            }
+            console.log('Loading rows...');
+            if (!rows) return cb();
             idb('nigeria')
-                .store('test6')
+                .store('test')
                 .load(rows)
                 .then(function() {
-                	addRows(reader);
-            	});
+                    addRows(reader, cb);
+                });
         });
 }
-
-
-
-
-function testIter() {
-    i = 0;
-    start = new Date();
-    idb('nigeria')
-        .store('test6')
-        .each(function(row){
-            i++;
-        })
-        .run()
-    	.catch(console.log)
-	    .then(function(){
-            var end  = new Date();
-            var time = (end.getTime() - start.getTime()) / 1000;
-            console.log(i, time);
-        });
-}
-
-
-testIter();
-
-
 
 
 
