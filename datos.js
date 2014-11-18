@@ -87,7 +87,6 @@ function Editor(code) {
     self.editor = CodeMirror($('.content')[0], {
         value: code || '',
         mode: 'javascript',
-        autofocus: true,
         indentUnit: 4,
         viewportMargin: Infinity,
         theme: 'twilight'
@@ -107,8 +106,7 @@ function Editor(code) {
             // Clear output
             self.$output.empty();
             
-            // Run code in worker
-            //App.runWorker(self.id, cm.getValue());
+            // Run code
             self.run(cm.getValue());
             
             // Focus on next editor
@@ -122,77 +120,52 @@ function Editor(code) {
     });
 }
 
+Editor.log = function($output, args) {
+    $output.append('<div>' + Editor.prettyprint(args) + '</div>');
+    //console.log.apply(console, args);
+};
+
 Editor.prettyprint = function(what) {
     if (!what) {
-        return what;
-    } else if (what.length != undefined) {
+        return '' + what;
+    } else if (_.isArguments(what)) {
         var items = [];
         for (var i=0, item; item=what[i]; i++) {
-            items.push(item.toString());
+            items.push(Editor.prettyprint(item));
         }
-        return '[' + items.join(',') + ']';
+        return items.join(', ');
+    } else if (_.isArray(what)) {
+        var items = [];
+        for (var i=0, item; item=what[i]; i++) {
+            items.push(Editor.prettyprint(item));
+        }
+        return '[' + items.join(', ') + ']';
+    } else if (typeof what == 'object') {
+        var items = [];
+        for (var key in what) {
+            if (what.hasOwnProperty(key)) {
+                items.push(key + ': ' + Editor.prettyprint(what[key]));
+            }
+        }
+        return '{' + items.join(', ') + '}';
     }
     return what.toString();
 };
 
-Editor.saveAll = function() {
-    var codes = [];
-    $('.editor')
-        .each(function() {
-            var code = this.CodeMirror.getValue();
-            if (code) codes.push(code);
-        });
-    localStorage.codes = JSON.stringify(codes);
-};
-
-Editor.restore = function() {
-    var codes = localStorage.codes ? JSON.parse(localStorage.codes) : [];
-    if (codes.length) { 
-        codes.forEach(function(code) {
-            new Editor(code);
-        });
-    } else {
-        new Editor();
-    }
-};
-
 Editor.prototype.run = function(code) {
     var self = this;
-    var c = _.clone(console);
-    var code = "c.log = function(arg) {$output.append('<div>' + arg + '</div>');};" +
-        "var console = c;"
-        + self.editor.getValue();
-    var fn = Function('$output', 'c', code);
-    
+    var code = "function log() { Editor.log($output, arguments); };" +
+        self.editor.getValue();
+    var fn = Function('$output', code);
     try {
-        var out = fn.call(null, self.$output, c);
+        var out = fn.call(null, self.$output);
     } catch (e) {
         var out = e;
     }
     App.save();
-    
-    if (out && out.then) {
-        // Output the value of a promise
-        self.$output.append('Promise...');
-        out.then(function(val) {
-            self.$output
-                .append('<div>' + Editor.prettyprint(val) + '</div>');
-        });
-    } else if (out && out.onValue) {
-        // Bacon stream    
-        out.onValue(function(val) {
-            self.$output
-                .append('<div>' + Editor.prettyprint(val) + '</div>');
-        });
-    } else {
-        self.$output.append(Editor.prettyprint(out));
-    }
 };
 
 
-
-// Overwrite console.log -- dirty, i know
-console._log = console.log;
 
 function upload($output) {
     // Show file picker
