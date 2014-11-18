@@ -32,6 +32,7 @@ pre {
     font-family: inherit;
     padding: 10px;
     border-radius: 5px;
+    overflow: visible;
 }
 .editor .CodeMirror-cursor {
     border-left-width: 2px !important;
@@ -48,6 +49,6 @@ pre {
     padding: 10px;
     display: block;
     white-space: pre;  
-    max-height: 200px;
+    max-height: 250px;
     overflow: auto;  
 }
