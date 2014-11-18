@@ -71,7 +71,6 @@ Database.prototype.delete = function(name) {
                 db.close();
                 var req = indexedDB.open(self.name, db.version + 1);
                 req.onupgradeneeded = function(e) {
-                    debugger;
                     var db2 = e.target.result;
                     try {
                         db2.deleteObjectStore(name);
