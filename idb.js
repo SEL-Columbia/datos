@@ -15,7 +15,7 @@ idb.list = function() {
     });
 };
 
-idb.remove = function(name) {
+idb.delete = function(name) {
     // Removes a database
     return new Promise(function(resolve, reject) {
         var req = indexedDB.deleteDatabase(name);
@@ -63,17 +63,18 @@ Database.prototype.list = function() {
     });
 };
 
-Database.prototype.remove = function(name) {
+Database.prototype.delete = function(name) {
     var self = this;
     return new Promise(function(resolve, reject) {
         self.getIDB()
             .then(function(db) {
                 db.close();
                 var req = indexedDB.open(self.name, db.version + 1);
-                req.onupgradeneeded = function(event) {
-                    var db2 = event.target.result;
+                req.onupgradeneeded = function(e) {
+                    debugger;
+                    var db2 = e.target.result;
                     try {
-                        db2.removeObjectStore(name);
+                        db2.deleteObjectStore(name);
                         resolve(true);
                     } catch(e) {
                         reject(e);
