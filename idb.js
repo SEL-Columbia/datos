@@ -9,7 +9,7 @@ idb.list = function() {
     return new Promise(function(resolve, reject) {
         indexedDB
             .webkitGetDatabaseNames()
-            .onsuccess = function(sender,args) {
+            .onsuccess = function(sender, args) {
                 resolve(sender.target.result);
             };
     });
@@ -54,35 +54,18 @@ Database.prototype.getIDB = function() {
 
 Database.prototype.list = function() {
     // List stores
-    return this.getIDB()
-        .then(function(db) {
-            return db.objectStoreNames;
-        });
-};
-
-Database.prototype.addStore = function(name) {
     var self = this;
-    return new Promise(function(resolve,reject) {
+    return new Promise(function(resolve, reject) {
         self.getIDB()
             .then(function(db) {
-                // Close lower version # connection as it will block other connections
-                db.close();
-                var req = indexedDB.open(self.name, db.version + 1);
-                req.onupgradeneeded = function(event) {
-                    var db2 = event.target.result;
-                    var store = db2.createObjectStore(name, {autoIncrement: true});
-                    resolve(store);
-                };
-                req.onerror = function(event) {
-                    reject(event);
-                };
+                resolve(db.objectStoreNames);
             });
     });
 };
 
-Database.prototype.removeStore = function(name) {
+Database.prototype.remove = function(name) {
     var self = this;
-    return new Promise(function(resolve,reject) {
+    return new Promise(function(resolve, reject) {
         self.getIDB()
             .then(function(db) {
                 db.close();
@@ -111,20 +94,37 @@ function Store(db, name, queue) {
     this.queue = queue || []; // Operations queue
 }
 
-Store.prototype.info = {
-    takes: ['str'],
-    returns: null
-};
-
 Store.prototype.getIDBStore = function(mode) {
     var self = this;
-    return self.db
-        .getIDB()
-        .then(function(db) {
-            return db.transaction([self.name], mode)
-                .objectStore(self.name);
-        });
+    return new Promise(function(resolve,reject) {
+        self.db
+            .getIDB()
+            .then(function(db) {
+                if (db.objectStoreNames.contains(self.name)) {
+                    // Return object store
+                    var store = db.transaction([self.name], mode)
+                        .objectStore(self.name);
+                    resolve(store);
+                } else {
+                    // Create an object store
+                    // Close connection as it will block transactions
+                    db.close();
+                    var req = indexedDB.open(db.name, db.version + 1);
+                    req.onupgradeneeded = function(event) {
+                        var db2 = event.target.result;
+                        db2.createObjectStore(self.name, {autoIncrement: true});
+                        db2.close();
+                        self.getIDBStore(mode)
+                            .then(resolve);
+                    };
+                    req.onerror = function(event) {
+                        reject(event);
+                    };
+                }
+            });
+    });
 };
+
 
 Store.prototype.get = function(id) {
     var self = this;
@@ -161,23 +161,18 @@ Store.prototype.add = function(obj) {
     });
 };
 
-loaded =0;
 Store.prototype.load = function(objs) {
     // Bulk loads rows
     // Returns a promise that will trigger when loading has finished
     //
     // http://stackoverflow.com/questions/22247614/optimized-bulk-chunk-upload-of-objects-into-indexeddb
     // http://stackoverflow.com/questions/10471759/inserting-large-quantities-in-indexeddbs-objectstore-blocks-ui
-    var self = this;
-    
+    var self = this;    
     return new Promise(function(resolve, reject) {
         self.getIDBStore('readwrite')
             .then(function(store) {
-                var index = 0;
-                
+                var index = 0;                
                 function addNext() {
-                    loaded++;
-                    
                     var obj = objs[index++];
                     if (!obj) return resolve();
                     var req = store.add(obj);
@@ -215,7 +210,6 @@ Store.prototype.run = function(mode) {
                     if (cursor) {
                         var row = cursor.value;
                         row.id = cursor.key;
-                        
                         for (var i=0, fn; fn=self.queue[i]; i++) {
                             row = fn.call(null, row, store);
                             if (row === false) {
