@@ -167,14 +167,14 @@ Store.prototype.load = function(objs) {
     //
     // http://stackoverflow.com/questions/22247614/optimized-bulk-chunk-upload-of-objects-into-indexeddb
     // http://stackoverflow.com/questions/10471759/inserting-large-quantities-in-indexeddbs-objectstore-blocks-ui
-    var self = this;    
+    var self = this;
     return new Promise(function(resolve, reject) {
         self.getIDBStore('readwrite')
             .then(function(store) {
-                var index = 0;                
+                var index = 0;
                 function addNext() {
                     var obj = objs[index++];
-                    if (!obj) return resolve();
+                    if (!obj) return resolve(true);
                     var req = store.add(obj);
                     req.onsuccess = addNext;
                     req.onerror = reject;
@@ -188,10 +188,9 @@ Store.prototype.each = function(cb) {
     return new Store(this.db, this.name, this.queue.concat(cb));
 };
 
-Store.prototype.saveAll = function() {
+Store.prototype.save = function() {
     function saveRow(row, store) {
         var id = row.id;
-        delete row.id;
         store.put(row, id);
         return row;
     }
@@ -211,14 +210,14 @@ Store.prototype.run = function(mode) {
                         var row = cursor.value;
                         row.id = cursor.key;
                         for (var i=0, fn; fn=self.queue[i]; i++) {
-                            row = fn.call(null, row, store);
-                            if (row === false) {
-                                return resolve();                                
+                            if (fn(row, store) === false) {
+                                // Stop iteration
+                                return resolve(true);                                
                             }
                         }
                         cursor.continue();
                     } else {
-                        resolve();
+                        resolve(true);
                     }
                 };
             });

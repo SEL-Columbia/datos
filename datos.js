@@ -1,4 +1,6 @@
-App = {};
+App = {
+    codeDelim: '\n//!BLOCK\n'
+};
 App.init = function() {
     // Module entry point
     var self = this;
@@ -10,9 +12,31 @@ App.init = function() {
         return 'Are you sure you want to close this page?';
     };
     
+    // For some reason $.get() loads the script and does not trigger success handler..
+    var req = new XMLHttpRequest();
+    req.onload = function() {
+        App.restore(this.responseText);
+    };
+    req.open('get', 'demo.js', true);
+    req.send();
+};
+
+App.save = function() {
+    var codes = [];
+    $('.editor')
+        .each(function() {
+            var code = this.CodeMirror.getValue();
+            if (code) codes.push(code);
+        });
+    localStorage.codes = codes.join(this.codeDelim);
+};
+
+App.restore = function(code) {
     // Restore saved page
-    var codes = localStorage.codes ? JSON.parse(localStorage.codes) : [];
-    if (codes.length) { 
+    var self = this;
+    code = (code != undefined) ? code : localStorage.codes || '';
+    var codes = code.split(this.codeDelim);
+    if (codes.length) {
         codes.forEach(function(code) {
             self.newEditor(code);
         });
@@ -70,15 +94,6 @@ App.prettyprint = function(what) {
     return what.toString();
 };
 
-App.save = function() {
-    var codes = [];
-    $('.editor')
-        .each(function() {
-            var code = this.CodeMirror.getValue();
-            if (code) codes.push(code);
-        });
-    localStorage.codes = JSON.stringify(codes);
-};
 
 
 function Editor(code) {
@@ -86,10 +101,10 @@ function Editor(code) {
     self.id = Math.random();
     self.editor = CodeMirror($('.content')[0], {
         value: code || '',
+        fixedGutter: false,
         mode: 'javascript',
         indentUnit: 4,
-        viewportMargin: Infinity,
-        theme: 'twilight'
+        theme: 'ambiance'
     });
     
     // Manually add editor class
@@ -120,9 +135,22 @@ function Editor(code) {
     });
 }
 
+Editor.prototype.run = function(code) {
+    var self = this;
+    var code = "function log() { Editor.log($output, arguments); };\n" +
+        self.editor.getValue();
+    var fn = Function('$output', code);
+    try {
+        var out = fn.call(null, self.$output);
+    } catch (e) {
+        var out = Editor.log(self.$output, [e.stack]);
+    }
+    App.save();
+};
+
 Editor.log = function($output, args) {
     $output.append('<div>' + Editor.prettyprint(args) + '</div>');
-    //console.log.apply(console, args);
+    console.log.apply(console, args);
 };
 
 Editor.prettyprint = function(what) {
@@ -150,19 +178,6 @@ Editor.prettyprint = function(what) {
         return '{' + items.join(', ') + '}';
     }
     return what.toString();
-};
-
-Editor.prototype.run = function(code) {
-    var self = this;
-    var code = "function log() { Editor.log($output, arguments); };" +
-        self.editor.getValue();
-    var fn = Function('$output', code);
-    try {
-        var out = fn.call(null, self.$output);
-    } catch (e) {
-        var out = e;
-    }
-    App.save();
 };
 
 
