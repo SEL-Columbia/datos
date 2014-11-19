@@ -46,7 +46,8 @@ idb('zoo')
         // I forgot they liked fish
         penguin.likes.push('fish');
     })
-    .save(log);
+    .save()
+    .then(log);
 //!BLOCK
 // Tallying stuff
 likes = {};

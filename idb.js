@@ -1,5 +1,5 @@
 (function() {
-    
+
 idb = function(name) {
     return new Database(name);
 };
@@ -23,7 +23,7 @@ idb.delete = function(name) {
             resolve(true);
         };
         req.onerror = function(event) {
-            resolve(false);
+            reject(false);
         };
     });
 };
@@ -32,6 +32,13 @@ idb.delete = function(name) {
 function Database(name) {
     this.name = name;
 }
+
+Database._dbs = [];
+Database._closeDbs = function() {
+    this._dbs.forEach(function(db) {
+        db.close();
+    });
+};
 
 Database.prototype.getIDB = function() {
     // Returns a promise containing an IDBDatabase instance
@@ -43,6 +50,7 @@ Database.prototype.getIDB = function() {
             db.onerror = function(event) {
                 throw 'Error creating/accessing IndexedDB';
             };
+            Database._dbs.push(db);
             resolve(db);
         };
         req.onerror = function(event) {
@@ -51,16 +59,12 @@ Database.prototype.getIDB = function() {
     });
 };
 
-
-Database.prototype.list = function() {
+Database.prototype.list = function(cb) {
     // List stores
-    var self = this;
-    return new Promise(function(resolve, reject) {
-        self.getIDB()
-            .then(function(db) {
-                resolve(db.objectStoreNames);
-            });
-    });
+    this.getIDB()
+        .then(function(db) {
+            cb(db.objectStoreNames);
+        });
 };
 
 Database.prototype.delete = function(name) {
@@ -96,10 +100,10 @@ function Store(db, name, queue) {
 
 Store.prototype.getIDBStore = function(mode) {
     var self = this;
-    return new Promise(function(resolve,reject) {
-        self.db
-            .getIDB()
-            .then(function(db) {
+    return self.db
+        .getIDB()
+        .then(function(db) {
+            return new Promise(function(resolve, reject) {
                 if (db.objectStoreNames.contains(self.name)) {
                     // Return object store
                     var store = db.transaction([self.name], mode)
@@ -122,43 +126,42 @@ Store.prototype.getIDBStore = function(mode) {
                     };
                 }
             });
-    });
+        });
 };
 
 
 Store.prototype.get = function(id) {
     var self = this;
-    return self.getIDBStore('readonly')
+    return self
+        .getIDBStore('readonly')
         .then(function(store) {
             return new Promise(function(resolve, reject) {
                 var request = store.get(id);
-                request.onsuccess = function(event) {
-                    resolve(event.target.result);
+                request.onsuccess = function(e) {
+                    Database._closeDbs();
+                    resolve(e.target.result);
                 };
-                request.onerror = function(event) {
-                    reject(event);
-                };
+                request.onerror = reject;
             });
         });
 };
 
 Store.prototype.add = function(obj) {
-    var self = this;    
-    return new Promise(function(resolve, reject) {
-        self.getIDBStore('readwrite')
-            .then(function(store) {
+    return this
+        .getIDBStore('readwrite')
+        .then(function(store) {
+            return new Promise(function(resolve, reject) {
                 // TODO: figure out why transactions are interrupted by console.log()
                 // https://www.youtube.com/watch?v=2Oe9Plp6bdE
                 var req = store.add(obj);
                 req.onsuccess = function(e) {
+                    Database._closeDbs();
                     // Returns row key
                     resolve(e.target.result);
                 };
-                req.onerror = function(e) {
-                    reject(e);
-                };
+                req.onerror = reject;
             });
-    });
+        });
 };
 
 Store.prototype.load = function(objs) {
@@ -168,20 +171,24 @@ Store.prototype.load = function(objs) {
     // http://stackoverflow.com/questions/22247614/optimized-bulk-chunk-upload-of-objects-into-indexeddb
     // http://stackoverflow.com/questions/10471759/inserting-large-quantities-in-indexeddbs-objectstore-blocks-ui
     var self = this;
-    return new Promise(function(resolve, reject) {
-        self.getIDBStore('readwrite')
-            .then(function(store) {
+    return self
+        .getIDBStore('readwrite')
+        .then(function(store) {
+            return new Promise(function(resolve, reject) {
                 var index = 0;
                 function addNext() {
                     var obj = objs[index++];
-                    if (!obj) return resolve(true);
+                    if (!obj) {
+                        Database._closeDbs();
+                        return resolve(true);
+                    }
                     var req = store.add(obj);
                     req.onsuccess = addNext;
                     req.onerror = reject;
                 }
                 addNext();
             });
-    });
+        });
 };
 
 Store.prototype.each = function(cb) {
@@ -201,9 +208,10 @@ Store.prototype.save = function() {
 Store.prototype.run = function(mode) {
     var self = this;
     mode = mode || 'readonly';
-    return new Promise(function(resolve, reject) {
-        self.getIDBStore(mode)
-            .then(function(store) {
+    return self
+        .getIDBStore(mode)
+        .then(function(store) {
+            return new Promise(function(resolve, reject) {
                 store.openCursor().onsuccess = function(event) {
                     var cursor = event.target.result;
                     if (cursor) {
@@ -212,25 +220,26 @@ Store.prototype.run = function(mode) {
                         for (var i=0, fn; fn=self.queue[i]; i++) {
                             if (fn(row, store) === false) {
                                 // Stop iteration
+                                Database._closeDbs();
                                 return resolve(true);                                
                             }
                         }
                         cursor.continue();
                     } else {
+                        Database._closeDbs();
                         resolve(true);
                     }
                 };
             });
-    });
+        });
 };
 
 Store.prototype.all = function() {
-    var self = this;
     var rows = [];
-    self.queue.push(function(row) {
+    this.queue.push(function(row) {
         rows.push(row);
     });
-    return self.run()
+    return this.run()
         .then(function() {
             return rows;
         });
