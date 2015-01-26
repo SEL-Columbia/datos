@@ -239,7 +239,8 @@ Store.prototype.all = function() {
     this.queue.push(function(row) {
         rows.push(row);
     });
-    return this.run()
+    return this
+        .run()
         .then(function() {
             return rows;
         });
